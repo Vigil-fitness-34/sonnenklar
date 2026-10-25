@@ -1,0 +1,9 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+<rect width="512" height="512" rx="0" fill="#16181c"/>
+<g transform="translate(56 64) scale(4)">
+<g fill="#f45d2f"><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(0 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(45 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(90 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(135 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(180 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(225 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(270 50 52)"/><rect x="46.5" y="4" width="7" height="14" rx="3.5" transform="rotate(315 50 52)"/></g>
+<circle cx="50" cy="52" r="29" fill="#f45d2f"/><ellipse cx="39" cy="38" rx="9" ry="5.5" fill="#fff" opacity=".28" transform="rotate(-25 39 38)"/>
+<path d="M35.5 52 q5.5 -7 11 0 M53.5 52 q5.5 -7 11 0" stroke="#16181c" stroke-width="3.4" fill="none" stroke-linecap="round"/>
+<path d="M40.5 58.5 q9.5 14 19 0 z" fill="#16181c"/><path d="M45 64.6 q5 3.6 10 0 q-5 -2.2 -10 0z" fill="#ff8f7a"/>
+<circle cx="33.5" cy="59" r="4.2" fill="#fff" opacity=".3"/><circle cx="66.5" cy="59" r="4.2" fill="#fff" opacity=".3"/>
+</g></svg>
