@@ -1,0 +1,125 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sonnenklar Widgets</title>
+<meta name="theme-color" content="#eef0eb">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="app.css">
+<style>
+  .gal { max-width: 1120px; margin: 0 auto; padding: 22px 16px 60px; }
+  .gal-top { display: flex; flex-wrap: wrap; gap: 14px; align-items: flex-end; justify-content: space-between; margin-bottom: 22px; }
+  .gal-top p { max-width: 52ch; margin-top: 8px; }
+  .controls { display: flex; gap: 10px; flex-wrap: wrap; }
+  .wall {
+    border-radius: 32px; padding: 26px 22px 30px; margin-bottom: 22px;
+    background: radial-gradient(120% 90% at 0% 0%, #ffd2bd 0%, transparent 55%), radial-gradient(90% 80% at 100% 100%, #c9d3ea 0%, transparent 60%), #e9e6e2;
+  }
+  .wall.night { background: radial-gradient(120% 90% at 0% 0%, #3a2b45 0%, transparent 55%), radial-gradient(90% 80% at 100% 100%, #13283a 0%, transparent 60%), #15161c; }
+  .wall h2 { margin-bottom: 16px; color: #16181c; }
+  .wall.night h2 { color: #f1eee6; }
+  .row-w { display: flex; flex-wrap: wrap; gap: 22px 20px; }
+  .tile { display: grid; gap: 9px; justify-items: start; animation: slidein .5s var(--ease) both; animation-delay: calc(var(--i) * 60ms); }
+  .tile .wg { box-shadow: 0 14px 34px -14px rgba(20, 20, 30, .45); transition: transform .35s var(--ease); overflow: hidden; }
+  .tile:hover .wg { transform: translateY(-4px) scale(1.015); }
+  .cap { display: flex; gap: 8px; align-items: center; font-weight: 700; font-size: 14px; color: #16181c; }
+  .wall.night .cap { color: #f1eee6; }
+  .param { font: 700 12px ui-monospace, Consolas, monospace; background: rgba(22, 24, 28, .1); padding: 3px 8px; border-radius: 99px; }
+  .wall.night .param { background: rgba(255, 255, 255, .12); }
+  .how { display: grid; gap: 10px; }
+  .how ol { margin: 0; padding-left: 20px; display: grid; gap: 6px; }
+  @media (max-width: 420px) { .wall { padding: 20px 12px; } .row-w { justify-content: center; gap: 18px 14px; zoom: .9; } }
+</style>
+</head>
+<body>
+<div class="gal">
+  <div class="gal-top">
+    <div>
+      <a class="link" href="./"><i class="ph-bold ph-arrow-left"></i> Zurück zu Sonnenklar</a>
+      <h1 style="margin-top:10px">Deine Widgets</h1>
+      <p class="muted">12 Designs fürs iPhone und den Mac-Schreibtisch. So sehen sie mit deinen Daten aus. Beim Einrichten trägst du den Parameter ein.</p>
+    </div>
+    <div class="controls">
+      <div class="seg" id="segTime"><button data-time="m"><i class="ph-bold ph-sun-horizon"></i>Morgens</button><button data-time="e"><i class="ph-bold ph-moon-stars"></i>Abends</button></div>
+      <div class="seg" id="segData"><button data-data="mine">Meine Daten</button><button data-data="demo">Beispiel</button></div>
+    </div>
+  </div>
+  <div id="walls"></div>
+  <section class="card how">
+    <h2>So kommen sie aufs iPhone</h2>
+    <ol>
+      <li>Gratis-App <b>Scriptable</b> aus dem App Store laden.</li>
+      <li>In Sonnenklar: Einstellungen, <b>iPhone- und Mac-Widget</b>, Code kopieren, in Scriptable als Skript „Sonnenklar“ speichern.</li>
+      <li>Home-Bildschirm lange drücken, <b>+</b>, Scriptable in der passenden Größe hinzufügen.</li>
+      <li>Widget gedrückt halten, <b>Widget bearbeiten</b>: Skript „Sonnenklar“, bei Parameter z. B. <span class="param">M3</span>.</li>
+      <li>Neuen Stand schickst du mit <b>Widgets aktualisieren</b> in den Einstellungen rüber.</li>
+    </ol>
+  </section>
+</div>
+<script src="recipes.js"></script>
+<script src="shared.js"></script>
+<script src="widget-shim.js"></script>
+<script>
+(() => {
+  const DESIGNS = {
+    small: [['s1', 'Routine'], ['s2', 'Nächster Schritt'], ['s3', 'Top 3'], ['s4', 'Serie und Wasser']],
+    medium: [['m1', 'Routine'], ['m2', 'Dein Tag'], ['m3', 'Essen heute'], ['m4', 'Serie']],
+    large: [['l1', 'Tagesübersicht'], ['l2', 'Routine komplett'], ['l3', 'Wochenplan'], ['l4', 'Rezept des Tages']]
+  };
+  const NAMES = { small: 'Klein', medium: 'Mittel', large: 'Groß' };
+  let mine = null;
+  try { mine = JSON.parse(localStorage.getItem('sonnenklar-v1')); } catch (e) {}
+  const recipes = () => [...window.BUILTIN_RECIPES, ...((mine && mine.recipes) || [])];
+
+  function demoState() {
+    const id = n => 'd' + n, day = SK.dk();
+    const m = ['Glas Wasser trinken', 'Bett machen', '10 Minuten bewegen', 'Kalt duschen', 'Frühstück ohne Handy', 'Top 3 festlegen'].map((t, i) => ({ id: id(i), t, min: [1, 2, 10, 5, 15, 3][i] }));
+    const e = ['Morgen kurz planen', 'Schreibtisch aufräumen', 'Handy weg, Flugmodus an', '3 Sätze Tagebuch', '15 Minuten lesen'].map((t, i) => ({ id: id(10 + i), t, min: [5, 10, 1, 5, 15][i] }));
+    const log = {};
+    for (let i = 1; i <= 13; i++) { const d = SK.lnow(); d.setDate(d.getDate() - i); const full = i < 7 || i % 3; log[SK.dk(d)] = { m: full ? m.map(s => s.id) : [m[0].id], mf: !!full, e: i % 4 ? e.map(s => s.id) : [], ef: !!(i % 4) }; }
+    log[day] = { m: [m[0].id, m[1].id, m[2].id], e: [e[0].id], top: [{ t: 'Angebot an Kunden schicken', done: true }, { t: 'Steuerberater anrufen', done: false }, { t: 'Landingpage fertig machen', done: false }], w: 5, food: [{ kcal: 430, p: 27 }, { kcal: 650, p: 49 }] };
+    return { set: { name: (mine && mine.set && mine.set.name) || '', eve: 15, water: 8, kcal: 2300, protein: 140 }, routines: { m, e }, log,
+      plan: { mo: { f: 'b1', m: 'b5', a: 'b7' }, di: { f: 'b2', m: 'b8', a: 'b6' }, mi: { f: 'b4', m: 'b5', a: 'b9' }, do: { f: 'b1', m: 'b11', a: 'b10' }, fr: { f: 'b3', m: 'b10', a: 'b12' }, sa: { f: 'b12', m: 'b11' }, so: { f: 'b3', a: 'b6' } } };
+  }
+  const hasMine = !!(mine && mine.routines);
+  const st = { time: new Date().getHours() >= ((mine && mine.set && mine.set.eve) || 15) ? 'e' : 'm', data: hasMine ? 'mine' : 'demo' };
+  let code = '';
+
+  async function draw() {
+    document.querySelectorAll('#segTime button').forEach(b => b.classList.toggle('on', b.dataset.time === st.time));
+    document.querySelectorAll('#segData button').forEach(b => b.classList.toggle('on', b.dataset.data === st.data));
+    const S = st.data === 'mine' && hasMine ? mine : demoState();
+    const data = SK.buildWidgetData(S, recipes());
+    const now = new Date(); now.setHours(st.time === 'e' ? 21 : 7, 30, 0, 0);
+    const src = code.replace('/*DATA*/null', JSON.stringify(data));
+    const walls = document.getElementById('walls');
+    walls.innerHTML = '';
+    let i = 0;
+    for (const fam of ['small', 'medium', 'large']) {
+      const wall = document.createElement('section');
+      wall.className = 'wall' + (st.time === 'e' ? ' night' : '');
+      wall.innerHTML = `<h2>${NAMES[fam]}</h2><div class="row-w"></div>`;
+      const row = wall.querySelector('.row-w');
+      for (const [p, name] of DESIGNS[fam]) {
+        const tile = document.createElement('div');
+        tile.className = 'tile'; tile.style.setProperty('--i', i++);
+        try { const el = await renderWidget(src, fam, p, now); el.classList.add('wg'); tile.appendChild(el); }
+        catch (err) { tile.textContent = 'Fehler in ' + p + ': ' + err.message; console.error(err); }
+        tile.insertAdjacentHTML('beforeend', `<div class="cap">${name}<span class="param">${p.toUpperCase()}</span></div>`);
+        row.appendChild(tile);
+      }
+      walls.appendChild(wall);
+    }
+  }
+  document.getElementById('segTime').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { st.time = b.dataset.time; draw(); } });
+  document.getElementById('segData').addEventListener('click', e => { const b = e.target.closest('button'); if (b) { st.data = b.dataset.data; draw(); } });
+  fetch('widget-scriptable.js').then(r => r.text()).then(t => { code = t; return document.fonts.ready; }).then(draw);
+})();
+</script>
+</body>
+</html>

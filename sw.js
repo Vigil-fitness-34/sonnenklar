@@ -1,6 +1,6 @@
 // Bei jedem Update CACHE hochzählen, sonst behalten installierte Apps die alte Version.
-const CACHE = 'sonnenklar-v1';
-const CORE = ['./', 'index.html', 'app.css', 'app.js', 'recipes.js', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
+const CACHE = 'sonnenklar-v2';
+const CORE = ['./', 'index.html', 'app.css', 'app.js', 'recipes.js', 'shared.js', 'widget-scriptable.js', 'widget-shim.js', 'widgets.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
   e.waitUntil(caches.open(CACHE).then(c => c.addAll(CORE)).then(() => self.skipWaiting()));

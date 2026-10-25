@@ -130,14 +130,7 @@ function moodOf(w) {
 }
 
 /* ---------- Rezepte: Mengen ---------- */
-function parseIng(line) {
-  const m = String(line).trim().match(/^(\d+(?:[.,]\d+)?|\d+\/\d+)\s*(g|kg|ml|l|EL|TL|Stk|Prise|Dose|Scheibe|Scheiben|Bund|Pck|Zehe|Zehen|Handvoll|Becher|Tasse)?\s+(.+)$/i);
-  if (!m) return { q: null, u: '', n: String(line).trim() };
-  let q = m[1].includes('/') ? m[1].split('/').reduce((a, b) => a / b) : parseFloat(m[1].replace(',', '.'));
-  return { q, u: m[2] || '', n: m[3] };
-}
-const fmtQ = q => q == null ? '' : (q < 10 ? Math.round(q * 2) / 2 : Math.round(q)).toLocaleString('de-DE');
-const fmtIng = (i, k = 1) => [i.q != null ? fmtQ(i.q * k) : '', i.u].filter(Boolean).join(' ');
+const { parseIng, fmtIng } = window.SK;
 function guessEmoji(t) {
   const s = t.toLowerCase();
   const map = [[/hafer|oats|müsli|porridge/, '🥣'], [/pancake|pfannkuchen/, '🥞'], [/ei\b|eier|rührei|omelett/, '🍳'], [/hähnchen|huhn|chicken|pute/, '🍗'],
@@ -207,7 +200,8 @@ function rHeute() {
   // Aufgaben heute
   const td = S.todos.filter(t => t.when === 'heute' && !t.done).slice(0, 4);
 
-  return `${head(`${hi}${S.set.name ? ', ' + esc(S.set.name) : ''}`, date)}${hint}
+  const sync = isIOS ? `<button class="icon-btn" data-act="widgetSync" aria-label="Widgets aktualisieren" title="Widgets aktualisieren"><i class="ph-bold ph-arrows-clockwise"></i></button>` : '';
+  return `${head(`${hi}${S.set.name ? ', ' + esc(S.set.name) : ''}`, date, sync)}${hint}
   <div class="today">
     <section class="hero">
       <div class="hero-top"><div class="mascot">${sunni(mo.mood, w === 'e')}</div><p class="bubble" key="${mo.line}">${esc(mo.line)}</p></div>
@@ -253,12 +247,7 @@ function waterHTML(l) {
   return s + `<span class="muted small num" style="margin-left:6px">${l.w}/${g} Gläser Wasser</span>`;
 }
 
-function streak(w) {
-  let n = 0; const d = lnow();
-  if (!(S.log[dk(d)] || {})[w + 'f']) d.setDate(d.getDate() - 1);
-  for (;;) { const l = S.log[dk(d)]; if (l && l[w + 'f']) { n++; d.setDate(d.getDate() - 1); } else break; }
-  return n;
-}
+const streak = w => window.SK.streak(S, w);
 function streakHTML() {
   const sm = streak('m'), se = streak('e');
   const t = lnow(); const dow = (t.getDay() + 6) % 7;
@@ -550,73 +539,33 @@ function settingsSheet() {
     <div><p class="f" style="font-size:13px;font-weight:650;color:var(--muted);margin-bottom:6px">Design</p><div class="seg">${[['system', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']].map(([k, v]) => `<button class="${st.theme === k ? 'on' : ''}" data-act="theme" data-t="${k}">${v}</button>`).join('')}</div></div></div>
   <div class="set-sec"><h3>Tagesziele</h3><div class="three"><label class="f">kcal<input class="input num" type="number" data-set="kcal" value="${st.kcal}"></label><label class="f">Protein g<input class="input num" type="number" data-set="protein" value="${st.protein}"></label><label class="f">Gläser Wasser<input class="input num" type="number" min="1" max="16" data-set="water" value="${st.water}"></label></div></div>
   <div class="set-sec"><h3>Widgets</h3><p class="muted small">Mini-Widget: ein kleines Fenster, das über allem schwebt (Chrome und Edge auf Windows und Mac). Fürs iPhone und den Mac-Schreibtisch gibt's ein echtes Widget über die Gratis-App Scriptable.</p>
-    <div class="row" style="flex-wrap:wrap"><button class="btn sm primary" data-act="pip"><i class="ph-bold ph-picture-in-picture"></i>Mini-Widget öffnen</button><button class="btn sm" data-act="widgetCode"><i class="ph-bold ph-device-mobile"></i>iPhone- und Mac-Widget</button></div></div>
+    <div class="row" style="flex-wrap:wrap"><button class="btn sm primary" data-act="pip"><i class="ph-bold ph-picture-in-picture"></i>Mini-Widget öffnen</button><button class="btn sm" data-act="widgetCode"><i class="ph-bold ph-device-mobile"></i>iPhone- und Mac-Widget</button><a class="btn sm" href="widgets.html"><i class="ph-bold ph-squares-four"></i>Alle Widgets ansehen</a><button class="btn sm" data-act="widgetSync"><i class="ph-bold ph-arrows-clockwise"></i>Widgets aktualisieren</button></div></div>
   <div class="set-sec"><h3>Deine Daten</h3><p class="muted small">Alles bleibt auf diesem Gerät, ohne Konto. Mit Export und Import ziehst du um, zum Beispiel vom Laptop aufs Handy.</p>
     <div class="row" style="flex-wrap:wrap"><button class="btn sm" data-act="export"><i class="ph-bold ph-download-simple"></i>Exportieren</button><button class="btn sm" data-act="import"><i class="ph-bold ph-upload-simple"></i>Importieren</button><button class="btn sm ghost" data-act="reset"><i class="ph-bold ph-warning"></i>Alles löschen</button></div></div>`);
 }
 
-function scriptableCode() {
-  const R = { m: S.routines.m.map(s => s.t), e: S.routines.e.map(s => s.t) };
-  const P = {};
-  WD.forEach((d, i) => { P[i] = Object.keys(SLOTS).map(k => { const v = (S.plan[d] || {})[k]; const r = typeof v === 'string' ? getR(v) : null; return r ? r.e + ' ' + r.t : (v && v.t) || ''; }); });
-  return `// Sonnenklar Widget für Scriptable
-// Neu kopieren, wenn du Routinen oder Wochenplan änderst.
-const R = ${JSON.stringify(R)};
-const PLAN = ${JSON.stringify(P)};
-const EVE = ${+S.set.eve};
-const ACC = new Color("#f45d2f"), INK = new Color("#16181c");
-const now = new Date(), h = now.getHours();
-const isE = h >= EVE || h < 4;
-const fam = config.widgetFamily || "medium";
-const list = R[isE ? "e" : "m"];
-const meals = PLAN[new Date(now - 4 * 36e5).getDay()].map((m, i) => m ? ["Früh", "Mittag", "Abend"][i] + ": " + m : "").filter(Boolean);
-const w = new ListWidget();
-if (fam.startsWith("accessory")) {
-  const a = w.addText((isE ? "Abend" : "Morgen") + ": " + list.length + " Schritte");
-  a.font = Font.boldSystemFont(13);
-  const b = w.addText(list.slice(0, 2).join(", "));
-  b.font = Font.systemFont(12); b.lineLimit = 2;
-} else {
-  w.backgroundColor = ACC;
-  w.setPadding(14, 16, 14, 16);
-  const head = w.addText(isE ? "🌙 Abendroutine" : "☀️ Morgenroutine");
-  head.font = Font.heavySystemFont(fam === "small" ? 14 : 16); head.textColor = INK;
-  w.addSpacer(6);
-  const max = fam === "large" ? 9 : 4;
-  const row = w.addStack();
-  const left = row.addStack(); left.layoutVertically();
-  for (const s of list.slice(0, max)) {
-    const t = left.addText("○  " + s); t.font = Font.semiboldSystemFont(fam === "small" ? 12 : 13);
-    t.textColor = INK; t.lineLimit = 1; left.addSpacer(3);
-  }
-  if (list.length > max) { const m = left.addText("+ " + (list.length - max) + " weitere"); m.font = Font.systemFont(11); m.textColor = new Color("#16181c", 0.6); }
-  if (fam !== "small" && meals.length) {
-    const box = fam === "large" ? w : row;
-    if (fam === "large") w.addSpacer(10); else row.addSpacer(12);
-    const right = box.addStack(); right.layoutVertically();
-    const mh = right.addText("Essen heute"); mh.font = Font.heavySystemFont(12); mh.textColor = INK; right.addSpacer(3);
-    for (const m of meals) { const t = right.addText(m); t.font = Font.systemFont(11); t.textColor = new Color("#16181c", 0.85); t.lineLimit = 1; right.addSpacer(2); }
-  }
-  w.addSpacer();
-  const f = w.addText("Sonnenklar, du schaffst das."); f.font = Font.mediumSystemFont(10); f.textColor = new Color("#16181c", 0.6);
-}
-w.refreshAfterDate = new Date(Date.now() + 30 * 60 * 1000);
-if (config.runsInWidget) Script.setWidget(w); else await w.presentMedium();
-Script.complete();`;
-}
+// Widget-Skript einmal laden, damit "Code kopieren" ohne Wartezeit funktioniert (Zwischenablage braucht den Klick)
+let WTPL = '';
+fetch('widget-scriptable.js').then(r => r.text()).then(t => { WTPL = t; }).catch(() => {});
+const widgetData = () => window.SK.buildWidgetData(S, allRecipes());
+const scriptableCode = () => WTPL.replace('/*DATA*/null', JSON.stringify(widgetData()));
 function widgetCodeSheet() {
   openSheet(`${sheetHead('Widgets für iPhone und Mac')}
+  <a class="btn primary block" href="widgets.html" style="margin-bottom:16px"><i class="ph-bold ph-squares-four"></i>Alle 12 Widgets ansehen</a>
   <h3>iPhone</h3><ol class="howto">
     <li>Lade die Gratis-App <b>Scriptable</b> aus dem App Store.</li>
     <li>Tippe unten auf <b>Code kopieren</b>.</li>
     <li>In Scriptable oben rechts auf <b>+</b>, Code einfügen, Skript „Sonnenklar“ nennen.</li>
-    <li>Home-Bildschirm lange drücken, <b>+</b>, Scriptable-Widget (mittel) hinzufügen, gedrückt halten, <b>Widget bearbeiten</b> und als Skript „Sonnenklar“ wählen.</li>
+    <li>Home-Bildschirm lange drücken, <b>+</b>, Scriptable in klein, mittel oder groß hinzufügen.</li>
+    <li>Widget gedrückt halten, <b>Widget bearbeiten</b>: Skript „Sonnenklar“, bei Parameter das Design eintragen, z. B. <b>M3</b>.</li>
   </ol>
-  <p class="muted small" style="margin-bottom:12px">Das Widget zeigt morgens die Morgenroutine, ab ${S.set.eve} Uhr die Abendroutine, plus dein Essen für heute. Abhaken machst du in der App. Auch als Sperrbildschirm-Widget nutzbar.</p>
+  <p class="muted small" style="margin-bottom:12px">Klein: S1 bis S4, Mittel: M1 bis M4, Groß: L1 bis L4. Morgens zeigen sie die Morgenroutine, ab ${S.set.eve} Uhr die Abendroutine. Abhaken machst du in der App, danach tippst du auf <b>Widgets aktualisieren</b> und der neue Stand landet im Widget.</p>
   <h3>Mac</h3><p class="muted small" style="margin:6px 0 12px">Ab macOS Sonoma kannst du iPhone-Widgets auf den Mac-Schreibtisch legen: Rechtsklick auf den Schreibtisch, <b>Widgets bearbeiten</b>, dann bei „iPhone“ das Scriptable-Widget wählen. Dafür müssen Mac und iPhone mit derselben Apple-ID angemeldet sein. Für ein Widget zum Abhaken öffne Sonnenklar in Chrome oder Edge und nutze das <b>Mini-Widget</b>.</p>
-  <h3>Windows</h3><p class="muted small" style="margin:6px 0 12px">Sonnenklar in Edge oder Chrome öffnen, oben in der Adressleiste auf <b>App installieren</b>. Dann in der App: Einstellungen, <b>Mini-Widget öffnen</b>. Das schwebt immer im Vordergrund. Tipp: Unter edge://apps kannst du einstellen, dass die App beim Hochfahren startet.</p>
-  <div class="code" id="codeBox">${esc(scriptableCode())}</div>
-  <button class="btn primary block" style="margin-top:12px" data-act="copyCode"><i class="ph-bold ph-copy"></i>Code kopieren</button>`);
+  <h3>Windows</h3><p class="muted small" style="margin:6px 0 12px">Sonnenklar in Edge oder Chrome öffnen, oben in der Adressleiste auf <b>App installieren</b>. Dann in der App: Einstellungen, <b>Mini-Widget öffnen</b>. Das schwebt immer im Vordergrund.</p>
+  <div class="two" style="display:grid;grid-template-columns:1fr 1fr;gap:10px">
+    <button class="btn dark" data-act="copyCode"><i class="ph-bold ph-copy"></i>Code kopieren</button>
+    <button class="btn" data-act="widgetSync"><i class="ph-bold ph-arrows-clockwise"></i>Aktualisieren</button>
+  </div>`);
 }
 
 /* ---------- Fokus-Modus (Routine Schritt für Schritt) ---------- */
@@ -858,7 +807,8 @@ function act(a, el) {
     case 'theme': S.set.theme = d.t; applyTheme(); persist(); return settingsSheet();
     case 'pip': return openPip();
     case 'widgetCode': return widgetCodeSheet();
-    case 'copyCode': navigator.clipboard.writeText(scriptableCode()).then(() => toast('Code kopiert. Ab in Scriptable damit!'), () => toast('Kopieren ging nicht. Markier den Code von Hand.')); return;
+    case 'widgetSync': location.href = 'scriptable:///run/Sonnenklar?data=' + encodeURIComponent(JSON.stringify(widgetData())); return;
+    case 'copyCode': if (!WTPL) { toast('Widget-Code lädt noch. Gleich nochmal tippen.'); return; } navigator.clipboard.writeText(scriptableCode()).then(() => toast('Code kopiert. Ab in Scriptable damit!'), () => toast('Kopieren ging nicht. Markier den Code von Hand.')); return;
     case 'export': {
       const blob = new Blob([JSON.stringify(S, null, 1)], { type: 'application/json' });
       const a2 = document.createElement('a'); a2.href = URL.createObjectURL(blob); a2.download = `sonnenklar-backup-${today()}.json`; a2.click();
