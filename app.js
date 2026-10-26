@@ -64,7 +64,9 @@ if (!S || !S.routines) {
   S.shop = Object.assign({ c: {}, extra: [] }, S.shop);
 }
 
-const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); } catch (e) { toast('Speichern fehlgeschlagen. Speicher voll?'); } };
+// Andere Fenster (Mini-Widget, zweiter Tab) über Änderungen informieren; das storage-Event allein kommt in der Mac-App nicht an
+const bc = 'BroadcastChannel' in window ? new BroadcastChannel('sonnenklar') : null;
+const persist = () => { try { localStorage.setItem(KEY, JSON.stringify(S)); if (bc) bc.postMessage('changed'); } catch (e) { toast('Speichern fehlgeschlagen. Speicher voll?'); } };
 const save = () => { persist(); render(); };
 
 const L = (d = today()) => {
@@ -144,9 +146,17 @@ function guessMeal() { const h = new Date().getHours(); return h < 11 ? 'Frühst
 
 /* ---------- Render ---------- */
 const view = $('#view');
+// In der Mac-App (Electron) gibt es eine Brücke für Menüleiste und Mini-Fenster
+const DESK = window.sonnenklarDesktop || null;
+function deskStatus() {
+  if (!DESK) return;
+  const w = curWhich(), mo = moodOf(w);
+  DESK.status(`${w === 'e' ? '🌙' : '☀️'} ${mo.done}/${mo.total}`, `${RNAME[w]}: ${mo.done} von ${mo.total} erledigt`);
+}
 function render() {
+  deskStatus();
   if (document.body.classList.contains('widget-mode')) { $('#view').innerHTML = widgetHTML(); return; }
-  document.querySelectorAll('.tab').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
+  document.querySelectorAll('.tab[data-tab]').forEach(b => b.classList.toggle('on', b.dataset.tab === ui.tab));
   const html = { heute: rHeute, routinen: rRoutinen, aufgaben: rAufgaben, essen: rEssen }[ui.tab]();
   view.innerHTML = `<div class="${ui.tabChanged ? 'view-in' : ''}">${html}</div>`;
   ui.tabChanged = false;
@@ -646,6 +656,7 @@ function renderPip() {
   if (root) root.innerHTML = widgetHTML();
 }
 async function openPip() {
+  if (DESK) { DESK.mini(); closeSheet(); return; }
   if (!('documentPictureInPicture' in window)) {
     toast('Das Mini-Widget klappt in Chrome und Edge. Alternativ: diese Seite mit ?widget in einem kleinen Fenster öffnen.');
     return;
@@ -747,7 +758,7 @@ function act(a, el) {
     case 'showDone': ui.showDone = true; return render();
     case 'rWhich': ui.rWhich = d.w; return render();
     case 'toggleStep': toggleStep(d.w, d.id); persist(); render(); ui.pulse = null; return;
-    case 'focus': if (pipWin) window.focus(); return openFocus(d.w);
+    case 'focus': if (DESK && document.body.classList.contains('widget-mode')) return DESK.focus(d.w); if (pipWin) window.focus(); return openFocus(d.w);
     case 'fClose': return closeFocus();
     case 'fDone': { const l = L(); const s = S.routines[F.w][F.i]; if (s && !l[F.w].includes(s.id)) { l[F.w].push(s.id); setFull(F.w, l); persist(); } buzz(); return focusNext(); }
     case 'fSkip': return focusNext();
@@ -826,7 +837,7 @@ function onClick(e) {
   act(el.dataset.act, el);
 }
 document.addEventListener('click', onClick);
-document.querySelectorAll('.tab').forEach(b => b.addEventListener('click', () => { ui.tab = b.dataset.tab; ui.tabChanged = true; window.scrollTo(0, 0); render(); }));
+document.querySelectorAll('.tab[data-tab]').forEach(b => b.addEventListener('click', () => { ui.tab = b.dataset.tab; ui.tabChanged = true; window.scrollTo(0, 0); render(); }));
 
 document.addEventListener('submit', e => {
   const f = e.target; const k = f.dataset.form; if (!k) return;
@@ -902,6 +913,7 @@ let lastKey = today() + curWhich();
 setInterval(() => { const k = today() + curWhich(); if (k !== lastKey) { lastKey = k; if (!F) render(); } }, 30000);
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !F && sheetEl.hidden) render(); });
 window.addEventListener('storage', e => { if (e.key === KEY) { try { S = JSON.parse(e.newValue); render(); } catch (x) {} } });
+if (bc) bc.onmessage = () => { try { S = JSON.parse(localStorage.getItem(KEY)) || S; } catch (x) {} if (!F) render(); };
 
 /* ---------- Start ---------- */
 $('.brand-mascot').innerHTML = sunni('ok', false);
@@ -909,6 +921,10 @@ applyTheme();
 if (params.has('widget')) document.body.classList.add('widget-mode');
 render();
 const fq = params.get('focus'); if (fq === 'm' || fq === 'e') openFocus(fq);
-if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
+if (DESK) DESK.onCommand(cmd => {
+  if (cmd === 'focus:m' || cmd === 'focus:e') { if (F) closeFocus(); openFocus(cmd.slice(-1)); }
+  else if (cmd === 'tab:aufgaben') { closeSheet(); ui.tab = 'aufgaben'; ui.tabChanged = true; render(); }
+});
+else if ('serviceWorker' in navigator && location.protocol !== 'file:') navigator.serviceWorker.register('sw.js').catch(() => {});
 window.__S = () => S;
 })();
