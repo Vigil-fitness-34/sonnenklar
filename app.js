@@ -749,7 +749,7 @@ function addFood(entry, day = today()) { const f = Object.assign({ id: uid() }, 
 function act(a, el) {
   const d = el.dataset;
   switch (a) {
-    case 'tab': ui.tab = d.tab; ui.tabChanged = true; closeSheet(); window.scrollTo(0, 0); return render();
+    case 'tab': ui.tab = d.tab; ui.tabChanged = true; closeSheet(); document.body.scrollTo(0, 0); return render();
     case 'tab-shop': ui.foodSeg = 'einkauf'; return render();
     case 'settings': return settingsSheet();
     case 'closeSheet': return closeSheet();
@@ -837,7 +837,7 @@ function onClick(e) {
   act(el.dataset.act, el);
 }
 document.addEventListener('click', onClick);
-document.querySelectorAll('.tab[data-tab]').forEach(b => b.addEventListener('click', () => { ui.tab = b.dataset.tab; ui.tabChanged = true; window.scrollTo(0, 0); render(); }));
+document.querySelectorAll('.tab[data-tab]').forEach(b => b.addEventListener('click', () => { ui.tab = b.dataset.tab; ui.tabChanged = true; document.body.scrollTo(0, 0); render(); }));
 
 document.addEventListener('submit', e => {
   const f = e.target; const k = f.dataset.form; if (!k) return;
