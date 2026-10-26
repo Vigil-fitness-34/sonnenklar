@@ -359,7 +359,7 @@ function rTagebuch() {
     <div class="water">${waterHTML(l)}</div>
   </section>
   <section class="card">
-    <div class="card-head"><h2>Gegessen</h2><button class="btn sm" data-act="logFromRecipe"><i class="ph-bold ph-cooking-pot"></i>Aus Rezept</button></div>
+    <div class="card-head"><h2>Gegessen</h2><div class="row"><button class="btn sm primary" data-act="foodPhoto"><i class="ph-bold ph-camera"></i>Foto</button><button class="btn sm" data-act="logFromRecipe"><i class="ph-bold ph-cooking-pot"></i>Aus Rezept</button></div></div>
     ${groups || `<div class="empty"><span class="em">🍽️</span>Noch nichts eingetragen.</div>`}
     <form class="form" data-form="food" style="display:grid;gap:10px;margin-top:14px">
       <input id="foodIn" class="input" name="t" autocomplete="off" placeholder="Was gab's? z. B. Döner" required>
@@ -384,7 +384,7 @@ function rPlan() {
 }
 
 function rRezepte() {
-  const tags = ['Alle', 'Frühstück', 'Mittag', 'Abend', 'Snack', 'schnell', 'High Protein', 'vegetarisch', 'Meal Prep', 'Eigene'];
+  const tags = ['Alle', 'Mein Plan', 'Frühstück', 'Mittag', 'Abend', 'Snack', 'schnell', 'High Protein', 'vegetarisch', 'Meal Prep', 'Eigene'];
   return `<div class="row"><input id="rq" class="input" placeholder="Rezept oder Zutat suchen" value="${esc(ui.rq)}" autocomplete="off" aria-label="Suche"><button class="btn sm ghost" data-act="importOpen" title="Plan oder Rezepte einfügen"><i class="ph-bold ph-clipboard-text"></i>Einfügen</button></div>
   <div class="chips">${tags.map(t => `<button class="chip ${ui.rtag === t ? 'on' : ''}" data-act="rtag" data-t="${t}">${t}</button>`).join('')}</div>
   <div class="rgrid" id="rgrid">${rgridHTML()}</div>`;
@@ -429,7 +429,7 @@ function openSheet(html) {
   sheetEl.hidden = false;
   const first = sheetEl.querySelector('[autofocus]'); if (first && matchMedia('(hover:hover)').matches) first.focus();
 }
-function closeSheet() { sheetEl.hidden = true; sheetEl.innerHTML = ''; }
+function closeSheet() { sheetEl.hidden = true; sheetEl.innerHTML = ''; ui.fotoRun = null; }
 const sheetHead = t => `<div class="sheet-head"><h2>${t}</h2><button class="icon-btn" data-act="closeSheet" aria-label="Schließen"><i class="ph-bold ph-x"></i></button></div>`;
 
 function recipeSheet(id) {
@@ -548,6 +548,9 @@ function settingsSheet() {
     <label class="f">Abendroutine zeigen ab<select class="input" data-set="eve">${[14, 15, 16, 17, 18, 19, 20, 21].map(h => `<option value="${h}" ${+st.eve === h ? 'selected' : ''}>${h}:00 Uhr</option>`).join('')}</select></label>
     <div><p class="f" style="font-size:13px;font-weight:650;color:var(--muted);margin-bottom:6px">Design</p><div class="seg">${[['system', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']].map(([k, v]) => `<button class="${st.theme === k ? 'on' : ''}" data-act="theme" data-t="${k}">${v}</button>`).join('')}</div></div></div>
   <div class="set-sec"><h3>Tagesziele</h3><div class="three"><label class="f">kcal<input class="input num" type="number" data-set="kcal" value="${st.kcal}"></label><label class="f">Protein g<input class="input num" type="number" data-set="protein" value="${st.protein}"></label><label class="f">Gläser Wasser<input class="input num" type="number" min="1" max="16" data-set="water" value="${st.water}"></label></div></div>
+  <div class="set-sec"><h3>Foto-Kalorien</h3><p class="muted small">Fotografier dein Essen, Claude erkennt die Zutaten und schätzt Menge, kcal und Protein. Dafür brauchst du einen eigenen API-Schlüssel von <b>console.anthropic.com</b> (Menüpunkt API Keys). Er bleibt nur auf diesem Gerät und kommt in keinen Export. Ein Foto kostet etwa 2 bis 3 Cent.</p>
+    <label class="f">API-Schlüssel<input id="kiKeyIn" class="input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="${kiKey() ? 'Hinterlegt, endet auf …' + esc(kiKey().slice(-4)) : 'sk-ant-…'}"></label>
+    ${kiKey() ? `<div class="row"><span class="muted small" style="flex:1"><i class="ph-bold ph-check-circle"></i> Foto-Erkennung ist bereit.</span><button class="btn sm ghost" data-act="kiKeyDel"><i class="ph-bold ph-trash"></i>Schlüssel löschen</button></div>` : ''}</div>
   <div class="set-sec"><h3>Widgets</h3><p class="muted small">Mini-Widget: ein kleines Fenster, das über allem schwebt (Chrome und Edge auf Windows und Mac). Fürs iPhone und den Mac-Schreibtisch gibt's ein echtes Widget über die Gratis-App Scriptable.</p>
     <div class="row" style="flex-wrap:wrap"><button class="btn sm primary" data-act="pip"><i class="ph-bold ph-picture-in-picture"></i>Mini-Widget öffnen</button><button class="btn sm" data-act="widgetCode"><i class="ph-bold ph-device-mobile"></i>iPhone- und Mac-Widget</button><a class="btn sm" href="widgets.html"><i class="ph-bold ph-squares-four"></i>Alle Widgets ansehen</a><button class="btn sm" data-act="widgetSync"><i class="ph-bold ph-arrows-clockwise"></i>Widgets aktualisieren</button></div></div>
   <div class="set-sec"><h3>Deine Daten</h3><p class="muted small">Alles bleibt auf diesem Gerät, ohne Konto. Mit Export und Import ziehst du um, zum Beispiel vom Laptop aufs Handy.</p>
@@ -746,6 +749,122 @@ function toggleStep(w, id) {
 }
 function addFood(entry, day = today()) { const f = Object.assign({ id: uid() }, entry); L(day).food.push(f); ui.newId = f.id; }
 
+/* ---------- Foto-Kalorien ---------- */
+// Das Foto geht direkt vom Gerät an die Claude-API. Der Schlüssel liegt nur auf
+// diesem Gerät, getrennt von KEY, damit er weder im Export noch in Widgets landet.
+// Ohne Schlüssel, offline oder bei Fehlern bleibt die manuelle Eingabe.
+const KI_KEY = 'sonnenklar-ki-key';
+const kiKey = () => { try { return localStorage.getItem(KI_KEY) || ''; } catch (e) { return ''; } };
+const FOTO_SCHEMA = {
+  type: 'object', additionalProperties: false, required: ['essen', 'name', 'zutaten', 'hinweis'],
+  properties: {
+    essen: { type: 'boolean', description: 'false, wenn auf dem Foto kein Essen oder Getränk zu sehen ist' },
+    name: { type: 'string', description: 'kurzer deutscher Name des Gerichts, z. B. "Spaghetti Bolognese"' },
+    zutaten: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'gramm', 'kcal', 'protein'],
+      properties: { name: { type: 'string' }, gramm: { type: 'number', description: 'geschätzte Menge in Gramm (Getränke in ml)' }, kcal: { type: 'number' }, protein: { type: 'number', description: 'Protein in Gramm' } } } },
+    hinweis: { type: 'string', description: 'ein kurzer Satz, was die Schätzung unsicher macht, oder leer' },
+  },
+};
+const FOTO_PROMPT = `Du schätzt Nährwerte von Essensfotos für ein persönliches Ernährungstagebuch.
+Erkenne jede sichtbare Komponente (Beilage, Soße, Öl, Getränk) als eigene Zutat.
+Schätze die Menge über Tellergröße, Besteck und Verpackungen. Rechne kcal und Protein mit üblichen Nährwerttabellen für genau diese Menge.
+Denk an Unsichtbares, das fast immer dabei ist (Bratfett, Dressing), wenn es zum Gericht passt.
+Schreib alle Namen auf Deutsch, kurz und alltagsnah. Runde Gramm auf 5, kcal auf ganze Zahlen, Protein auf ganze Gramm.
+Ist kein Essen zu sehen, setze essen auf false und lass die Zutaten leer.`;
+
+// Kein Build-Schritt in Sonnenklar, darum direkt per fetch statt SDK
+async function askClaude(jpegB64, signal) {
+  const r = await fetch('https://api.anthropic.com/v1/messages', {
+    method: 'POST', signal,
+    headers: { 'content-type': 'application/json', 'x-api-key': kiKey(), 'anthropic-version': '2026-10-21',
+      'anthropic-beta': 'server-side-fallback-2026-07-01', 'anthropic-dangerous-direct-browser-access': 'true' },
+    body: JSON.stringify({
+      model: 'claude-opus-5-5', max_tokens: 16000, fallbacks: 'default', system: FOTO_PROMPT,
+      output_config: { effort: 'low', format: { type: 'json_schema', schema: FOTO_SCHEMA } },
+      messages: [{ role: 'user', content: [{ type: 'image', source: { type: 'base64', media_type: 'image/jpeg', data: jpegB64 } }, { type: 'text', text: 'Was ist auf dem Teller?' }] }],
+    }),
+  });
+  const res = await r.json().catch(() => ({}));
+  if (!r.ok) {
+    const msg = (res.error && res.error.message) || '';
+    throw new Error(r.status === 401 ? 'Dein API-Schlüssel stimmt nicht.' : /credit/i.test(msg) ? 'Auf deinem Anthropic-Konto ist kein Guthaben mehr.'
+      : r.status === 429 || r.status === 529 ? 'Die Bild-KI ist gerade überlastet. Probier es gleich nochmal.' : 'Die Bild-KI ist gerade nicht erreichbar.');
+  }
+  if (res.stop_reason === 'refusal') throw new Error('Die Bild-KI wollte dieses Foto nicht auswerten.');
+  const block = (res.content || []).find(b => b.type === 'text');
+  if (res.stop_reason === 'max_tokens' || !block) throw new Error('Die Bild-KI hat keine vollständige Antwort geliefert.');
+  return JSON.parse(block.text);
+}
+
+const PORTIONEN = [[0.5, '½'], [0.75, '¾'], [1, '1'], [1.25, '1¼'], [1.5, '1½'], [2, '2']];
+const MEAL_SLOT = { Frühstück: 'f', Mittag: 'm', Abend: 'a' };
+
+// Lange Kante auf 1024 px: reicht der KI, hält Upload und Kosten klein
+function shrinkPhoto(file, max = 1024) {
+  return new Promise((ok, fail) => {
+    const url = URL.createObjectURL(file); const img = new Image();
+    img.onload = () => {
+      const s = Math.min(1, max / Math.max(img.naturalWidth, img.naturalHeight));
+      const c = document.createElement('canvas'); c.width = Math.round(img.naturalWidth * s); c.height = Math.round(img.naturalHeight * s);
+      c.getContext('2d').drawImage(img, 0, 0, c.width, c.height); URL.revokeObjectURL(url);
+      ok(c.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = () => { URL.revokeObjectURL(url); fail(new Error('kein Bild')); };
+    img.src = url;
+  });
+}
+
+async function analysePhoto(file) {
+  ui.foto = null;
+  let src;
+  try { src = await shrinkPhoto(file); } catch (e) { return fotoManualSheet('Das Bild ließ sich nicht öffnen.'); }
+  const run = ui.fotoRun = uid();
+  openSheet(`${sheetHead('Sunni schaut hin')}<div class="foto-wait"><img src="${src}" alt=""><i></i></div><p class="muted small" style="text-align:center;margin-top:12px">Erkenne Zutaten und schätze die Menge. Dauert ein paar Sekunden.</p>`);
+  let res;
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 90000);
+  try { res = await askClaude(src.split(',')[1], ctl.signal); } catch (e) {
+    if (ui.fotoRun !== run) return; // Sheet wurde inzwischen geschlossen
+    return fotoManualSheet(e.name === 'AbortError' || e instanceof TypeError || e instanceof SyntaxError ? 'Die Bild-KI ist gerade nicht erreichbar.' : e.message);
+  } finally { clearTimeout(t); }
+  if (ui.fotoRun !== run) return;
+  if (!res.essen || !(res.zutaten || []).length) return fotoManualSheet('Auf dem Foto war kein Essen zu erkennen.');
+  ui.foto = { src, name: res.name || '', hint: res.hinweis || '', k: 1, meal: guessMeal(),
+    items: res.zutaten.map(z => ({ n: z.name, g: +z.gramm || 0, kcal: +z.kcal || 0, p: +z.protein || 0, on: true })) };
+  fotoSheet();
+}
+
+const fotoSum = () => { const f = ui.foto, on = f.items.filter(i => i.on); return { kcal: on.reduce((a, i) => a + i.kcal, 0) * f.k, p: on.reduce((a, i) => a + i.p, 0) * f.k }; };
+function fotoLiveHTML() {
+  const f = ui.foto, s = fotoSum();
+  return `<div class="foto-items">${f.items.map((i, x) => `<div class="food-entry ${i.on ? '' : 'off'}"><span class="t">${esc(i.n)}<small class="muted num">${nf(i.g * f.k)} g</small></span><span class="v num">${nf(i.kcal * f.k)} kcal<br>${nf(i.p * f.k)} g P</span><button class="mini" data-act="fotoItem" data-i="${x}" aria-label="${i.on ? 'Entfernen' : 'Wieder dazunehmen'}"><i class="ph-bold ${i.on ? 'ph-x' : 'ph-arrow-counter-clockwise'}"></i></button></div>`).join('')}</div>
+  <p class="foto-label">Portion</p>
+  <div class="seg wide">${PORTIONEN.map(([k, l]) => `<button class="${f.k === k ? 'on' : ''}" data-act="fotoK" data-k="${k}">${l}×</button>`).join('')}</div>
+  <div class="goals foto-sum"><div class="goal"><b class="num">${nf(s.kcal)}</b> <small>kcal</small></div><div class="goal"><b class="num">${nf(s.p)}</b> <small>g Protein</small></div></div>`;
+}
+function fotoSheet() {
+  const live = $('#fotoLive'); if (live) { live.innerHTML = fotoLiveHTML(); return; }
+  const f = ui.foto;
+  openSheet(`${sheetHead('Das liegt auf dem Teller')}
+  <div class="foto-top"><img src="${f.src}" alt=""><label class="f">Name<input id="fotoName" class="input" value="${esc(f.name)}" placeholder="Was gab's?"></label></div>
+  <div id="fotoLive">${fotoLiveHTML()}</div>
+  <p class="muted small">${f.hint ? esc(f.hint) + ' ' : ''}Geschätzt, kann um 20 bis 30 % danebenliegen.</p>
+  <div class="row" style="margin-top:14px"><select id="fotoMeal" class="input" aria-label="Mahlzeit">${MEALS.map(m => `<option ${m === f.meal ? 'selected' : ''}>${m}</option>`).join('')}</select>
+    <button class="btn primary" data-act="fotoSave"><i class="ph-bold ph-check"></i>Eintragen</button></div>
+  <button class="link" data-act="fotoManual" style="display:block;margin:16px auto 0">Lieber selbst eintragen</button>`);
+}
+function fotoManualSheet(msg, needKey = false) {
+  const f = ui.foto, s = f ? fotoSum() : null;
+  const name = f ? ($('#fotoName') ? $('#fotoName').value : f.name) : '';
+  const meal = (f && $('#fotoMeal') ? $('#fotoMeal').value : f && f.meal) || guessMeal();
+  openSheet(`${sheetHead('Selbst eintragen')}${msg ? `<div class="foto-msg"><i class="ph-bold ph-info"></i><span>${esc(msg)} ${needKey ? 'Bis dahin trägst du es einfach selbst ein.' : 'Trag es einfach selbst ein.'}${needKey ? `<br><button class="link" data-act="settings">Schlüssel in den Einstellungen eintragen</button>` : ''}</span></div>` : ''}
+  <form class="form" data-form="fotoManual">
+    <label class="f">Was gab's?<input id="fotoManIn" class="input" name="t" autocomplete="off" required value="${esc(name)}" placeholder="z. B. Döner" autofocus></label>
+    <div class="three"><label class="f">kcal<input class="input num" name="kcal" type="number" min="0" inputmode="numeric" value="${s ? Math.round(s.kcal) : ''}"></label><label class="f">Protein g<input class="input num" name="p" type="number" min="0" inputmode="numeric" value="${s ? Math.round(s.p) : ''}"></label>
+    <label class="f">Mahlzeit<select class="input" name="meal">${MEALS.map(m => `<option ${m === meal ? 'selected' : ''}>${m}</option>`).join('')}</select></label></div>
+    <button class="btn dark"><i class="ph-bold ph-plus"></i>Eintragen</button>
+  </form>`);
+}
+
 function act(a, el) {
   const d = el.dataset;
   switch (a) {
@@ -784,6 +903,21 @@ function act(a, el) {
     case 'foodDay': { const dt = new Date((ui.foodDay || today()) + 'T12:00'); dt.setDate(dt.getDate() + +d.d); const k = dk(dt); ui.foodDay = k > today() ? today() : k; return render(); }
     case 'foodDel': { const l = L(ui.foodDay || today()); l.food = l.food.filter(f => f.id !== d.id); return save(); }
     case 'logFromRecipe': return logRecipeSheet();
+    case 'foodPhoto':
+      ui.foto = null;
+      if (!kiKey()) return fotoManualSheet('Für die Foto-Erkennung fehlt noch dein API-Schlüssel.', true);
+      if (!navigator.onLine) return fotoManualSheet('Du bist gerade offline.');
+      $('#photoFile').click(); return;
+    case 'kiKeyDel': try { localStorage.removeItem(KI_KEY); } catch (e) {} toast('Schlüssel von diesem Gerät gelöscht.'); return settingsSheet();
+    case 'fotoItem': { const i = ui.foto.items[+d.i]; i.on = !i.on; return fotoSheet(); }
+    case 'fotoK': ui.foto.k = +d.k; return fotoSheet();
+    case 'fotoManual': return fotoManualSheet();
+    case 'fotoSave': {
+      const f = ui.foto, s = fotoSum(), meal = $('#fotoMeal').value;
+      if (!f.items.some(i => i.on)) { toast('Alle Zutaten entfernt. Nimm eine wieder dazu.'); return; }
+      addFood({ t: $('#fotoName').value.trim() || 'Foto-Mahlzeit', kcal: Math.round(s.kcal), p: Math.round(s.p), meal, slot: MEAL_SLOT[meal], src: 'foto' }, ui.foodDay || today());
+      ui.foto = null; closeSheet(); toast('📸 Eingetragen. Guten Appetit!'); return save();
+    }
     case 'openRecipe': ui.portions = 1; return recipeSheet(d.id);
     case 'portions': ui.portions = Math.max(1, Math.min(12, ui.portions + +d.d)); return recipeSheet(d.id);
     case 'ateRecipe': {
@@ -826,7 +960,7 @@ function act(a, el) {
       setTimeout(() => URL.revokeObjectURL(a2.href), 2000); return;
     }
     case 'import': return $('#importFile').click();
-    case 'reset': if (!confirm('Wirklich alles löschen? Routinen, Aufgaben, Tagebuch und eigene Rezepte sind dann weg.')) return; localStorage.removeItem(KEY); location.reload(); return;
+    case 'reset': if (!confirm('Wirklich alles löschen? Routinen, Aufgaben, Tagebuch und eigene Rezepte sind dann weg.')) return; localStorage.removeItem(KEY); localStorage.removeItem(KI_KEY); location.reload(); return;
   }
 }
 
@@ -850,6 +984,7 @@ document.addEventListener('submit', e => {
     case 'step': { if (!t) return; const s = { id: uid(), t, min: Math.max(0, +v.min || 0) }; S.routines[f.dataset.w].push(s); setFull(f.dataset.w, L()); ui.newId = s.id; ui.focusSel = '#stepIn'; return save(); }
     case 'stepEdit': { const s = S.routines[f.dataset.w].find(x => x.id === f.dataset.id); if (s) { s.t = t || s.t; s.min = Math.max(0, +v.min || 0); } closeSheet(); return save(); }
     case 'food': if (!t) return; addFood({ t, kcal: +v.kcal || 0, p: +v.p || 0, meal: v.meal }, ui.foodDay || today()); ui.focusSel = '#foodIn'; return save();
+    case 'fotoManual': if (!t) return; addFood({ t, kcal: +v.kcal || 0, p: +v.p || 0, meal: v.meal, slot: MEAL_SLOT[v.meal] }, ui.foodDay || today()); ui.foto = null; closeSheet(); toast('Eingetragen.'); return save();
     case 'extra': if (!t) return; S.shop.extra.push({ id: uid(), t, done: false }); ui.focusSel = '#extraIn'; return save();
     case 'planText': { const p = S.plan[f.dataset.day] || (S.plan[f.dataset.day] = {}); if (t) p[f.dataset.slot] = { t }; else delete p[f.dataset.slot]; closeSheet(); return save(); }
     case 'toPlan': { const p = S.plan[v.day] || (S.plan[v.day] = {}); p[v.slot] = f.dataset.id; closeSheet(); toast(`Eingeplant: ${WDL[v.day]}, ${SLOTS[v.slot]}`); return save(); }
@@ -878,6 +1013,11 @@ document.addEventListener('submit', e => {
 });
 
 document.addEventListener('change', e => {
+  if (e.target.id === 'kiKeyIn') {
+    const v = e.target.value.trim(); if (!v) return;
+    try { localStorage.setItem(KI_KEY, v); } catch (x) { toast('Speichern fehlgeschlagen.'); return; }
+    toast('Schlüssel gespeichert. Foto-Erkennung ist bereit.'); return settingsSheet();
+  }
   const k = e.target.dataset && e.target.dataset.set; if (!k) return;
   const val = e.target.value;
   S.set[k] = ['eve', 'kcal', 'protein', 'water'].includes(k) ? Math.max(k === 'water' ? 1 : 0, Math.min(k === 'water' ? 16 : 99999, +val || 0)) : val.trim();
@@ -901,6 +1041,10 @@ $('#importFile').addEventListener('change', e => {
   }).catch(() => toast('Das ist keine Sonnenklar-Sicherung.'));
   e.target.value = '';
 });
+$('#photoFile').addEventListener('change', e => {
+  const file = e.target.files[0]; e.target.value = '';
+  if (file) analysePhoto(file);
+});
 
 function applyTheme() {
   const t = S.set.theme;
@@ -914,6 +1058,53 @@ setInterval(() => { const k = today() + curWhich(); if (k !== lastKey) { lastKey
 document.addEventListener('visibilitychange', () => { if (!document.hidden && !F && sheetEl.hidden) render(); });
 window.addEventListener('storage', e => { if (e.key === KEY) { try { S = JSON.parse(e.newValue); render(); } catch (x) {} } });
 if (bc) bc.onmessage = () => { try { S = JSON.parse(localStorage.getItem(KEY)) || S; } catch (x) {} if (!F) render(); };
+
+/* ---------- Einführung beim ersten Start: Name und Tagesziele ---------- */
+const onbEl = $('#onb');
+const O = { i: 0, name: S.set.name, kcal: 2100, protein: 170, water: S.set.water, eve: S.set.eve };
+function renderOnb() {
+  const p = Math.round((O.i + 1) / 2 * 100);
+  const top = `<div class="onb-top"><div class="bar"><i style="--w:${p}%"></i></div><button class="onb-skip" data-onb="skip">Überspringen</button></div>`;
+  let mid, bot;
+  if (O.i === 0) {
+    mid = `<div class="mascot">${sunni('happy', false)}</div><h1>Hi, ich bin Sunni!</h1><p class="lead">Ich bringe dich durch Morgen- und Abendroutine, halte deine Top 3 im Blick und sag dir, was es heute zu essen gibt. Wie heißt du?</p>
+      <input class="input" id="onbName" placeholder="Dein Vorname" value="${esc(O.name)}" autocomplete="given-name">`;
+    bot = `<button class="btn primary block" data-onb="next">Weiter</button>`;
+  } else {
+    mid = `<div class="mascot">${sunni('ok', false)}</div><h1>Deine Tagesziele${O.name ? `, ${esc(O.name)}` : ''}</h1><p class="lead">Danach richten sich die Balken beim Essen. Vorgeschlagen sind die Werte aus deinem Essensplan.</p>
+      <div class="three"><label class="f">kcal<input class="input num" type="number" id="onbKcal" value="${O.kcal}"></label><label class="f">Protein g<input class="input num" type="number" id="onbProt" value="${O.protein}"></label><label class="f">Gläser Wasser<input class="input num" type="number" min="1" max="16" id="onbWater" value="${O.water}"></label></div>
+      <label class="f">Abendroutine zeigen ab<select class="input" id="onbEve">${[17, 18, 19, 20, 21, 22].map(x => `<option value="${x}" ${+O.eve === x ? 'selected' : ''}>${x}:00 Uhr</option>`).join('')}</select></label>`;
+    bot = `<button class="btn primary block" data-onb="done">Los geht’s</button><button class="btn ghost block" data-onb="back">Zurück</button>`;
+  }
+  onbEl.innerHTML = `${top}<div class="onb-mid" key="${O.i}">${mid}</div><div class="onb-bot">${bot}</div>`;
+}
+function readOnb() {
+  if ($('#onbName')) O.name = $('#onbName').value.trim();
+  if ($('#onbKcal')) O.kcal = Math.max(0, +$('#onbKcal').value || O.kcal);
+  if ($('#onbProt')) O.protein = Math.max(0, +$('#onbProt').value || O.protein);
+  if ($('#onbWater')) O.water = Math.max(1, Math.min(16, +$('#onbWater').value || O.water));
+  if ($('#onbEve')) O.eve = +$('#onbEve').value;
+}
+function finishOnb(save) {
+  readOnb();
+  if (save) Object.assign(S.set, { name: O.name, kcal: O.kcal, protein: O.protein, water: O.water, eve: O.eve });
+  S.set.onboarded = true; persist();
+  onbEl.hidden = true; onbEl.innerHTML = ''; render();
+  if (save) confetti(60);
+}
+onbEl.addEventListener('click', e => {
+  const b = e.target.closest('[data-onb]'); if (!b) return;
+  readOnb();
+  const a = b.dataset.onb;
+  if (a === 'next') { O.i = 1; renderOnb(); }
+  else if (a === 'back') { O.i = 0; renderOnb(); }
+  else if (a === 'done') finishOnb(true);
+  else if (a === 'skip') finishOnb(false);
+});
+onbEl.addEventListener('keydown', e => { if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); const b = onbEl.querySelector('[data-onb="next"], [data-onb="done"]'); b && b.click(); } });
+// Nur bei einem frischen Start, nie über bestehende Daten
+const frisch = !S.set.onboarded && !S.set.name && !Object.keys(S.log).length && !S.todos.length && !params.has('widget');
+if (frisch) { onbEl.hidden = false; renderOnb(); }
 
 /* ---------- Start ---------- */
 $('.brand-mascot').innerHTML = sunni('ok', false);
