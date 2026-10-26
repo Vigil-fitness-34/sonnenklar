@@ -1,3 +1,9 @@
 node_modules/
 dist/
 ausgabe/
+ud/
+cdp*.mjs
+*.png
+!build/*.png
+!web/icons/*.png
+run.log
