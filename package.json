@@ -1,0 +1,30 @@
+{
+  "name": "sonnenklar",
+  "productName": "Sonnenklar",
+  "version": "1.0.0",
+  "description": "Routinen, Top 3, Fokus und Essensplan",
+  "main": "main.js",
+  "author": "Henri",
+  "private": true,
+  "scripts": {
+    "web": "node scripts/copy-web.js",
+    "start": "npm run web && electron .",
+    "dist": "npm run web && electron-builder --mac dir --arm64 --x64"
+  },
+  "devDependencies": {
+    "electron": "33.2.1",
+    "electron-builder": "25.1.8"
+  },
+  "build": {
+    "appId": "app.sonnenklar.mac",
+    "productName": "Sonnenklar",
+    "files": ["main.js", "preload.js", "web/**/*", "build/trayTemplate*.png"],
+    "mac": {
+      "category": "public.app-category.productivity",
+      "icon": "build/icon.png",
+      "target": "dir",
+      "identity": null,
+      "extendInfo": { "LSUIElement": false, "NSHumanReadableCopyright": "Sonnenklar" }
+    }
+  }
+}

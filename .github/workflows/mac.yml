@@ -1,0 +1,67 @@
+name: Mac-Build
+
+# Baut Sonnenklar als .dmg für Apple Silicon (M1 und neuer) und Intel.
+# Läuft bei jedem Push auf den Branch mac-build oder von Hand.
+on:
+  push:
+    branches: [mac-build]
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  dmg:
+    runs-on: macos-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - run: npm install --no-audit --no-fund
+
+      - name: App bauen
+        run: npx electron-builder --mac dir --arm64 --x64 -c.mac.identity=null
+        env:
+          CSC_IDENTITY_AUTO_DISCOVERY: "false"
+
+      # Ohne Apple-Entwicklerkonto ad hoc signieren, sonst startet die App auf
+      # Apple-Silicon-Macs gar nicht. Danach je eine .dmg mit Programme-Verknüpfung.
+      - name: Signieren und DMG erzeugen
+        run: |
+          set -euo pipefail
+          mkdir -p ausgabe
+          for paar in "dist/mac-arm64:Apple-Silicon" "dist/mac:Intel"; do
+            ordner="${paar%%:*}"
+            name="${paar##*:}"
+            app="$ordner/Sonnenklar.app"
+            test -d "$app"
+            codesign --force --deep --sign - "$app"
+            codesign --verify --deep --strict "$app"
+            stufe="$(mktemp -d)"
+            ditto "$app" "$stufe/Sonnenklar.app"
+            ln -s /Applications "$stufe/Programme"
+            hdiutil create -volname "Sonnenklar" -srcfolder "$stufe" -ov -format UDZO "ausgabe/Sonnenklar-Mac-$name.dmg"
+          done
+          ls -la ausgabe
+
+      # Kurztest auf dem Mac-Rechner: startet die App, bleibt sie offen, wie sieht sie aus?
+      - name: Starttest mit Bildschirmfoto
+        continue-on-error: true
+        run: |
+          set -u
+          open "dist/mac-arm64/Sonnenklar.app"
+          sleep 15
+          pgrep -fl "Sonnenklar" || echo "WARNUNG: App läuft nicht"
+          screencapture -x ausgabe/Sonnenklar-Starttest.png || true
+          pkill -f "Sonnenklar.app" || true
+
+      - name: Als Release-Datei ablegen
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          gh release view mac-aktuell >/dev/null 2>&1 || gh release create mac-aktuell --title "Mac-App (aktuell)" --notes "Wird bei jedem Mac-Build ersetzt." --prerelease --target mac-build
+          gh release upload mac-aktuell ausgabe/* --clobber

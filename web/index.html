@@ -1,0 +1,46 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<title>Sonnenklar</title>
+<meta name="description" content="Dein Alltagshelfer: Morgen- und Abendroutine, Top 3, Fokus-Timer, Essensplan und Rezepte.">
+<meta name="theme-color" content="#eef0eb" media="(prefers-color-scheme: light)">
+<meta name="theme-color" content="#111215" media="(prefers-color-scheme: dark)">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Sonnenklar">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="icons/icon.svg" type="image/svg+xml">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:opsz,wght@12..96,400..800&display=swap">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/bold/style.css">
+<link rel="stylesheet" href="https://unpkg.com/@phosphor-icons/web@2.1.1/src/fill/style.css">
+<link rel="stylesheet" href="app.css">
+</head>
+<body>
+<div class="app">
+  <nav class="nav" aria-label="Hauptnavigation">
+    <div class="brand"><span class="brand-mascot" style="width:38px;height:38px;display:block"></span>Sonnenklar</div>
+    <button class="tab" data-tab="heute"><i class="ph-bold ph-sun"></i><span>Heute</span></button>
+    <button class="tab" data-tab="routinen"><i class="ph-bold ph-repeat"></i><span>Routinen</span></button>
+    <button class="tab" data-tab="aufgaben"><i class="ph-bold ph-target"></i><span>Aufgaben</span></button>
+    <button class="tab" data-tab="essen"><i class="ph-bold ph-bowl-food"></i><span>Essen</span></button>
+    <div class="nav-extra">
+      <button class="tab" data-act="pip"><i class="ph-bold ph-picture-in-picture"></i><span>Mini-Widget</span></button>
+      <button class="tab" data-act="settings"><i class="ph-bold ph-gear-six"></i><span>Einstellungen</span></button>
+    </div>
+  </nav>
+  <main id="view"></main>
+</div>
+<div id="sheet" hidden></div>
+<div id="focus" class="focus" hidden></div>
+<input type="file" id="importFile" accept="application/json,.json" hidden>
+<script src="recipes.js"></script>
+<script src="shared.js"></script>
+<script src="app.js"></script>
+</body>
+</html>

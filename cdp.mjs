@@ -1,0 +1,16 @@
+const list = await (await fetch('http://127.0.0.1:9333/json/list')).json();
+const t = list.find(x => x.type === 'page');
+const ws = new WebSocket(t.webSocketDebuggerUrl); let id = 0; const pend = {};
+const send = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; ws.send(JSON.stringify({ id: i, method, params })); });
+const logs = [];
+ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && pend[m.id]) pend[m.id](m.result); else if (m.method === 'Runtime.exceptionThrown') logs.push(m.params.exceptionDetails.exception?.description || m.params.exceptionDetails.text); else if (m.method === 'Runtime.consoleAPICalled' && m.params.type==='error') logs.push(m.params.args.map(a=>a.value||a.description).join(' ')); };
+await new Promise(r => ws.onopen = r);
+await send('Runtime.enable');
+await send('Page.reload'); await new Promise(r => setTimeout(r, 4000));
+const ev = async x => (await send('Runtime.evaluate', { expression: x, returnByValue: true, awaitPromise: true })).result.value;
+console.log(await ev(`JSON.stringify({title:document.title, desk: !!window.sonnenklarDesktop, steps: document.querySelectorAll('.step').length, font: document.fonts.check('16px "Bricolage Grotesque"'), icons: getComputedStyle(document.querySelector('.ph-bold')).fontFamily})`));
+await ev(`document.querySelector('[data-act="toggleStep"]').click()`);
+const shot = await send('Page.captureScreenshot', { format: 'png' });
+(await import('fs')).writeFileSync(process.argv[2], Buffer.from(shot.data, 'base64'));
+console.log('errors:', JSON.stringify(logs));
+ws.close();

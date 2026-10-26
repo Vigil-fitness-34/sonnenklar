@@ -1,0 +1,15 @@
+const pages = async () => (await (await fetch('http://127.0.0.1:9333/json/list')).json()).filter(x => x.type === 'page');
+const conn = async t => { const ws = new WebSocket(t.webSocketDebuggerUrl); let id = 0; const pend = {}; ws.onmessage = e => { const m = JSON.parse(e.data); if (m.id && pend[m.id]) pend[m.id](m.result); }; await new Promise(r => ws.onopen = r); const send = (method, params = {}) => new Promise(r => { const i = ++id; pend[i] = r; ws.send(JSON.stringify({ id: i, method, params })); }); return { ws, send, ev: async x => (await send('Runtime.evaluate', { expression: x, returnByValue: true })).result.value }; };
+const main = await conn((await pages()).find(p => !p.url.includes('widget')));
+await main.ev(`document.querySelector('.nav-extra [data-act="pip"]').click()`);
+await new Promise(r => setTimeout(r, 3000));
+const mp = (await pages()).find(p => p.url.includes('widget'));
+console.log('mini:', mp && mp.url);
+const mini = await conn(mp);
+console.log(await mini.ev(`document.querySelector('.widget .wtop b').textContent + ' | ' + document.querySelector('.widget .muted').textContent`));
+await mini.ev(`document.querySelectorAll('.widget [data-act="toggleStep"]')[1].click()`);
+await new Promise(r => setTimeout(r, 500));
+console.log('main sees:', await main.ev(`document.querySelector('.prog b').textContent`));
+const shot = await mini.send('Page.captureScreenshot', { format: 'png' });
+(await import('fs')).writeFileSync(process.argv[2], Buffer.from(shot.data, 'base64'));
+main.ws.close(); mini.ws.close();
