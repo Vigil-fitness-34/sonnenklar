@@ -46,6 +46,7 @@ const defaults = () => ({
   recipes: [],
   plan: {},
   shop: { c: {}, extra: [] },
+  ean: {},
   ft: null
 });
 
@@ -59,7 +60,7 @@ if (!S || !S.routines) {
 } else {
   const d = defaults();
   S.set = Object.assign(d.set, S.set);
-  for (const k of ['log', 'plan']) S[k] = S[k] || {};
+  for (const k of ['log', 'plan', 'ean']) S[k] = S[k] || {};
   for (const k of ['todos', 'recipes']) S[k] = S[k] || [];
   S.shop = Object.assign({ c: {}, extra: [] }, S.shop);
 }
@@ -359,7 +360,7 @@ function rTagebuch() {
     <div class="water">${waterHTML(l)}</div>
   </section>
   <section class="card">
-    <div class="card-head"><h2>Gegessen</h2><div class="row"><button class="btn sm primary" data-act="foodPhoto"><i class="ph-bold ph-camera"></i>Foto</button><button class="btn sm" data-act="logFromRecipe"><i class="ph-bold ph-cooking-pot"></i>Aus Rezept</button></div></div>
+    <div class="card-head"><h2>Gegessen</h2><div class="row"><button class="btn sm primary" data-act="foodPhoto"><i class="ph-bold ph-camera"></i>Scannen</button><button class="btn sm" data-act="logFromRecipe"><i class="ph-bold ph-cooking-pot"></i>Aus Rezept</button></div></div>
     ${groups || `<div class="empty"><span class="em">🍽️</span>Noch nichts eingetragen.</div>`}
     <form class="form" data-form="food" style="display:grid;gap:10px;margin-top:14px">
       <input id="foodIn" class="input" name="t" autocomplete="off" placeholder="Was gab's? z. B. Döner" required>
@@ -429,7 +430,7 @@ function openSheet(html) {
   sheetEl.hidden = false;
   const first = sheetEl.querySelector('[autofocus]'); if (first && matchMedia('(hover:hover)').matches) first.focus();
 }
-function closeSheet() { sheetEl.hidden = true; sheetEl.innerHTML = ''; ui.fotoRun = null; }
+function closeSheet() { sheetEl.hidden = true; sheetEl.innerHTML = ''; ui.fotoRun = null; ui.ean = null; }
 const sheetHead = t => `<div class="sheet-head"><h2>${t}</h2><button class="icon-btn" data-act="closeSheet" aria-label="Schließen"><i class="ph-bold ph-x"></i></button></div>`;
 
 function recipeSheet(id) {
@@ -548,7 +549,7 @@ function settingsSheet() {
     <label class="f">Abendroutine zeigen ab<select class="input" data-set="eve">${[14, 15, 16, 17, 18, 19, 20, 21].map(h => `<option value="${h}" ${+st.eve === h ? 'selected' : ''}>${h}:00 Uhr</option>`).join('')}</select></label>
     <div><p class="f" style="font-size:13px;font-weight:650;color:var(--muted);margin-bottom:6px">Design</p><div class="seg">${[['system', 'Automatisch'], ['light', 'Hell'], ['dark', 'Dunkel']].map(([k, v]) => `<button class="${st.theme === k ? 'on' : ''}" data-act="theme" data-t="${k}">${v}</button>`).join('')}</div></div></div>
   <div class="set-sec"><h3>Tagesziele</h3><div class="three"><label class="f">kcal<input class="input num" type="number" data-set="kcal" value="${st.kcal}"></label><label class="f">Protein g<input class="input num" type="number" data-set="protein" value="${st.protein}"></label><label class="f">Gläser Wasser<input class="input num" type="number" min="1" max="16" data-set="water" value="${st.water}"></label></div></div>
-  <div class="set-sec"><h3>Foto-Kalorien</h3><p class="muted small">Fotografier dein Essen, Claude erkennt die Zutaten und schätzt Menge, kcal und Protein. Dafür brauchst du einen eigenen API-Schlüssel von <b>console.anthropic.com</b> (Menüpunkt API Keys). Er bleibt nur auf diesem Gerät und kommt in keinen Export. Ein Foto kostet etwa 2 bis 3 Cent.</p>
+  <div class="set-sec"><h3>Foto-Kalorien</h3><p class="muted small">Ist ein Barcode auf dem Foto, liest Sonnenklar ihn selbst und holt die Nährwerte kostenlos von Open Food Facts, ganz ohne Schlüssel. Für alles andere: Fotografier dein Essen, Claude erkennt die Zutaten und schätzt Menge, kcal und Protein. Dafür brauchst du einen eigenen API-Schlüssel von <b>console.anthropic.com</b> (Menüpunkt API Keys). Er bleibt nur auf diesem Gerät und kommt in keinen Export. Ein Foto kostet etwa 2 bis 3 Cent.</p>
     <label class="f">API-Schlüssel<input id="kiKeyIn" class="input" type="password" autocomplete="off" spellcheck="false" autocapitalize="off" placeholder="${kiKey() ? 'Hinterlegt, endet auf …' + esc(kiKey().slice(-4)) : 'sk-ant-…'}"></label>
     ${kiKey() ? `<div class="row"><span class="muted small" style="flex:1"><i class="ph-bold ph-check-circle"></i> Foto-Erkennung ist bereit.</span><button class="btn sm ghost" data-act="kiKeyDel"><i class="ph-bold ph-trash"></i>Schlüssel löschen</button></div>` : ''}</div>
   <div class="set-sec"><h3>Widgets</h3><p class="muted small">Mini-Widget: ein kleines Fenster, das über allem schwebt (Chrome und Edge auf Windows und Mac). Fürs iPhone und den Mac-Schreibtisch gibt's ein echtes Widget über die Gratis-App Scriptable.</p>
@@ -756,8 +757,9 @@ function addFood(entry, day = today()) { const f = Object.assign({ id: uid() }, 
 const KI_KEY = 'sonnenklar-ki-key';
 const kiKey = () => { try { return localStorage.getItem(KI_KEY) || ''; } catch (e) { return ''; } };
 const FOTO_SCHEMA = {
-  type: 'object', additionalProperties: false, required: ['essen', 'name', 'zutaten', 'hinweis'],
+  type: 'object', additionalProperties: false, required: ['essen', 'name', 'zutaten', 'hinweis', 'barcode'],
   properties: {
+    barcode: { type: 'string', description: 'Ziffern eines Strichcodes (EAN), wenn sie auf dem Foto lesbar sind, sonst leer' },
     essen: { type: 'boolean', description: 'false, wenn auf dem Foto kein Essen oder Getränk zu sehen ist' },
     name: { type: 'string', description: 'kurzer deutscher Name des Gerichts, z. B. "Spaghetti Bolognese"' },
     zutaten: { type: 'array', items: { type: 'object', additionalProperties: false, required: ['name', 'gramm', 'kcal', 'protein'],
@@ -770,7 +772,8 @@ Erkenne jede sichtbare Komponente (Beilage, Soße, Öl, Getränk) als eigene Zut
 Schätze die Menge über Tellergröße, Besteck und Verpackungen. Rechne kcal und Protein mit üblichen Nährwerttabellen für genau diese Menge.
 Denk an Unsichtbares, das fast immer dabei ist (Bratfett, Dressing), wenn es zum Gericht passt.
 Schreib alle Namen auf Deutsch, kurz und alltagsnah. Runde Gramm auf 5, kcal auf ganze Zahlen, Protein auf ganze Gramm.
-Ist kein Essen zu sehen, setze essen auf false und lass die Zutaten leer.`;
+Ist kein Essen zu sehen, setze essen auf false und lass die Zutaten leer.
+Sind unter einem Strichcode die Ziffern lesbar, schreib sie ohne Leerzeichen in barcode.`;
 
 // Kein Build-Schritt in Sonnenklar, darum direkt per fetch statt SDK
 async function askClaude(jpegB64, signal) {
@@ -814,12 +817,112 @@ function shrinkPhoto(file, max = 1024) {
   });
 }
 
+/* ---------- Barcode ---------- */
+// Jedes Foto wird zuerst auf dem Gerät nach einem Strichcode durchsucht. Gefundene
+// Produkte kommen aus Open Food Facts (frei, ohne Schlüssel) und werden in S.ean
+// gemerkt, damit derselbe Joghurt beim nächsten Mal auch offline klappt.
+const EAN_FORMATS = ['ean_13', 'ean_8', 'upc_a', 'upc_e'];
+// Safari auf dem iPhone hat keinen eingebauten BarcodeDetector, dann ZXing als WebAssembly
+const ZXING_URL = 'https://cdn.jsdelivr.net/npm/barcode-detector@3.2.2/dist/iife/ponyfill.js';
+let detector = null;
+function loadScript(src) {
+  return new Promise((ok, fail) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = fail; document.head.append(s); });
+}
+async function getDetector() {
+  if (detector) return detector;
+  let BD = window.BarcodeDetector;
+  if (BD) { try { const f = await BD.getSupportedFormats(); if (!EAN_FORMATS.some(x => f.includes(x))) BD = null; } catch (e) { BD = null; } }
+  if (!BD) { if (!window.BarcodeDetectionAPI) await loadScript(ZXING_URL); BD = window.BarcodeDetectionAPI.BarcodeDetector; }
+  return (detector = new BD({ formats: EAN_FORMATS }));
+}
+// Prüfziffer, damit falsch gelesene Ziffern (vor allem von der Bild-KI) nicht nachgeschlagen werden
+function eanOk(c) {
+  if (!/^(\d{8}|\d{12}|\d{13})$/.test(c)) return false;
+  const d = [...c].map(Number), last = d.pop();
+  const sum = d.reverse().reduce((a, x, i) => a + x * (i % 2 ? 1 : 3), 0);
+  return (10 - sum % 10) % 10 === last;
+}
+async function findBarcode(file) {
+  const scan = async () => {
+    // Volle Handy-Auflösung ist unnötig langsam, 1600 px reichen für Strichcodes
+    const bmp = await createImageBitmap(file);
+    const s = Math.min(1, 1600 / Math.max(bmp.width, bmp.height));
+    const c = document.createElement('canvas'); c.width = Math.round(bmp.width * s); c.height = Math.round(bmp.height * s);
+    c.getContext('2d').drawImage(bmp, 0, 0, c.width, c.height); bmp.close && bmp.close();
+    const codes = await (await getDetector()).detect(c);
+    const hit = codes.map(x => x.rawValue).find(eanOk);
+    return hit || null;
+  };
+  try { return await Promise.race([scan(), new Promise(ok => setTimeout(() => ok(null), 12000))]); } catch (e) { return null; }
+}
+// Liefert das Produkt, null wenn unbekannt oder ohne Nährwerte; wirft, wenn das Netz fehlt
+async function lookupEan(code) {
+  if (S.ean[code]) return S.ean[code];
+  const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 12000);
+  let j;
+  try {
+    const r = await fetch(`https://world.openfoodfacts.org/api/v2/product/${code}.json?fields=product_name,product_name_de,brands,nutriments,serving_quantity,product_quantity,product_quantity_unit`, { signal: ctl.signal });
+    if (r.status === 404) return null;
+    if (!r.ok) throw new Error('off');
+    j = await r.json();
+  } finally { clearTimeout(t); }
+  if (j.status !== 1 || !j.product) return null;
+  const p = j.product, n = p.nutriments || {};
+  const kcal = n['energy-kcal_100g'] != null ? +n['energy-kcal_100g'] : n.energy_100g != null ? n.energy_100g / 4.184 : null;
+  if (kcal == null || isNaN(kcal)) return null;
+  const prod = { n: (p.product_name_de || p.product_name || '').trim() || 'Produkt', b: String(p.brands || '').split(',')[0].trim(),
+    kcal: Math.round(kcal), p: Math.round((+n.proteins_100g || 0) * 10) / 10,
+    serv: Math.round(+p.serving_quantity || 0), pack: Math.round(+p.product_quantity || 0), ml: /ml|l/i.test(p.product_quantity_unit || '') };
+  S.ean[code] = prod;
+  return prod;
+}
+const eanMsg = code => `Den Barcode ${code} kennt Open Food Facts noch nicht.`;
+// true: Produkt-Sheet ist offen; sonst ein Hinweistext für den Weg über die Bild-KI
+async function tryEan(code, src, run) {
+  let prod;
+  try { prod = await lookupEan(code); } catch (e) { return `Barcode ${code} erkannt, aber die Produktsuche ist gerade nicht erreichbar.`; }
+  if (ui.fotoRun !== run) return true;
+  if (!prod) return eanMsg(code);
+  ui.ean = { code, src, prod, g: prod.serv || 100, meal: guessMeal() };
+  eanSheet();
+  return true;
+}
+const eanAmounts = pr => [pr.serv && [pr.serv, '1 Portion'], [100, '100'], pr.pack && pr.pack !== pr.serv && pr.pack !== 100 && [pr.pack, 'Packung']].filter(Boolean);
+function eanLiveHTML() {
+  const e = ui.ean, pr = e.prod, u = pr.ml ? 'ml' : 'g';
+  return `<div class="seg wide">${eanAmounts(pr).map(([g, l]) => `<button class="${e.g === g ? 'on' : ''}" data-act="eanG" data-g="${g}">${l === '100' ? `100 ${u}` : `${l} · ${nf(g)} ${u}`}</button>`).join('')}</div>
+  <div class="goals foto-sum"><div class="goal"><b class="num">${nf(pr.kcal * e.g / 100)}</b> <small>kcal</small></div><div class="goal"><b class="num">${nf(pr.p * e.g / 100)}</b> <small>g Protein</small></div></div>`;
+}
+function eanSheet() {
+  const e = ui.ean, pr = e.prod, u = pr.ml ? 'ml' : 'g';
+  openSheet(`${sheetHead('Barcode erkannt')}
+  <div class="foto-top"><img src="${e.src}" alt=""><label class="f">Name<input id="eanName" class="input" value="${esc(pr.b && !pr.n.toLowerCase().includes(pr.b.toLowerCase()) ? `${pr.n} (${pr.b})` : pr.n)}"></label></div>
+  <p class="muted small num">${nf(pr.kcal)} kcal und ${String(pr.p).replace('.', ',')} g Protein pro 100 ${u}</p>
+  <label class="f" style="margin-top:12px">Menge in ${u}<input id="eanG" class="input num" type="number" min="1" inputmode="numeric" value="${e.g}"></label>
+  <div id="eanLive">${eanLiveHTML()}</div>
+  <div class="row" style="margin-top:14px"><select id="eanMeal" class="input" aria-label="Mahlzeit">${MEALS.map(m => `<option ${m === e.meal ? 'selected' : ''}>${m}</option>`).join('')}</select>
+    <button class="btn primary" data-act="eanSave"><i class="ph-bold ph-check"></i>Eintragen</button></div>
+  <p class="muted small" style="text-align:center;margin-top:12px">Nährwerte von Open Food Facts · ${esc(e.code)}</p>`);
+}
+
 async function analysePhoto(file) {
-  ui.foto = null;
+  ui.foto = null; ui.ean = null;
   let src;
   try { src = await shrinkPhoto(file); } catch (e) { return fotoManualSheet('Das Bild ließ sich nicht öffnen.'); }
   const run = ui.fotoRun = uid();
-  openSheet(`${sheetHead('Sunni schaut hin')}<div class="foto-wait"><img src="${src}" alt=""><i></i></div><p class="muted small" style="text-align:center;margin-top:12px">Erkenne Zutaten und schätze die Menge. Dauert ein paar Sekunden.</p>`);
+  const wait = txt => openSheet(`${sheetHead('Sunni schaut hin')}<div class="foto-wait"><img src="${src}" alt=""><i></i></div><p class="muted small" style="text-align:center;margin-top:12px">${txt}</p>`);
+  wait('Suche Barcode und Zutaten. Dauert ein paar Sekunden.');
+  const code = await findBarcode(file);
+  if (ui.fotoRun !== run) return;
+  let note = '';
+  if (code) {
+    wait(`Barcode ${esc(code)} erkannt. Suche das Produkt …`);
+    note = await tryEan(code, src, run);
+    if (note === true) return;
+  }
+  if (!kiKey()) return code ? fotoManualSheet(note) : fotoManualSheet('Kein Barcode gefunden. Für die Foto-Erkennung von Essen fehlt noch dein API-Schlüssel.', true);
+  if (!navigator.onLine) return fotoManualSheet(note || 'Du bist gerade offline.');
+  wait('Erkenne Zutaten und schätze die Menge. Dauert ein paar Sekunden.');
   let res;
   const ctl = new AbortController(); const t = setTimeout(() => ctl.abort(), 90000);
   try { res = await askClaude(src.split(',')[1], ctl.signal); } catch (e) {
@@ -827,7 +930,11 @@ async function analysePhoto(file) {
     return fotoManualSheet(e.name === 'AbortError' || e instanceof TypeError || e instanceof SyntaxError ? 'Die Bild-KI ist gerade nicht erreichbar.' : e.message);
   } finally { clearTimeout(t); }
   if (ui.fotoRun !== run) return;
-  if (!res.essen || !(res.zutaten || []).length) return fotoManualSheet('Auf dem Foto war kein Essen zu erkennen.');
+  // Strichcode nur von der KI gelesen (z. B. unscharf): trotzdem Open Food Facts fragen
+  const kc = String(res.barcode || '').replace(/\D/g, '');
+  if (!code && eanOk(kc)) { wait(`Barcode ${esc(kc)} erkannt. Suche das Produkt …`); if (await tryEan(kc, src, run) === true) return; }
+  if (ui.fotoRun !== run) return;
+  if (!res.essen || !(res.zutaten || []).length) return fotoManualSheet(note || 'Auf dem Foto war kein Essen zu erkennen.');
   ui.foto = { src, name: res.name || '', hint: res.hinweis || '', k: 1, meal: guessMeal(),
     items: res.zutaten.map(z => ({ n: z.name, g: +z.gramm || 0, kcal: +z.kcal || 0, p: +z.protein || 0, on: true })) };
   fotoSheet();
@@ -904,14 +1011,19 @@ function act(a, el) {
     case 'foodDel': { const l = L(ui.foodDay || today()); l.food = l.food.filter(f => f.id !== d.id); return save(); }
     case 'logFromRecipe': return logRecipeSheet();
     case 'foodPhoto':
-      ui.foto = null;
-      if (!kiKey()) return fotoManualSheet('Für die Foto-Erkennung fehlt noch dein API-Schlüssel.', true);
-      if (!navigator.onLine) return fotoManualSheet('Du bist gerade offline.');
-      $('#photoFile').click(); return;
+      // Kein Schlüssel nötig: Barcodes klappen auch ohne, erst danach entscheidet analysePhoto
+      ui.foto = null; $('#photoFile').click(); return;
     case 'kiKeyDel': try { localStorage.removeItem(KI_KEY); } catch (e) {} toast('Schlüssel von diesem Gerät gelöscht.'); return settingsSheet();
     case 'fotoItem': { const i = ui.foto.items[+d.i]; i.on = !i.on; return fotoSheet(); }
     case 'fotoK': ui.foto.k = +d.k; return fotoSheet();
     case 'fotoManual': return fotoManualSheet();
+    case 'eanG': ui.ean.g = +d.g; $('#eanG').value = d.g; $('#eanLive').innerHTML = eanLiveHTML(); return;
+    case 'eanSave': {
+      const e = ui.ean, g = +$('#eanG').value, meal = $('#eanMeal').value;
+      if (!(g > 0)) { toast('Wie viel war es? Trag die Menge ein.'); return; }
+      addFood({ t: $('#eanName').value.trim() || e.prod.n, kcal: Math.round(e.prod.kcal * g / 100), p: Math.round(e.prod.p * g / 100), meal, slot: MEAL_SLOT[meal], src: 'barcode', ean: e.code }, ui.foodDay || today());
+      ui.ean = null; closeSheet(); toast('Eingetragen. Guten Appetit!'); return save();
+    }
     case 'fotoSave': {
       const f = ui.foto, s = fotoSum(), meal = $('#fotoMeal').value;
       if (!f.items.some(i => i.on)) { toast('Alle Zutaten entfernt. Nimm eine wieder dazu.'); return; }
@@ -1024,6 +1136,7 @@ document.addEventListener('change', e => {
   persist(); render();
 });
 document.addEventListener('input', e => {
+  if (e.target.id === 'eanG' && ui.ean) { ui.ean.g = +e.target.value || 0; $('#eanLive').innerHTML = eanLiveHTML(); }
   if (e.target.id === 'rq') { ui.rq = e.target.value; const g = $('#rgrid'); if (g) g.innerHTML = rgridHTML(); }
   if (e.target.id === 'pickQ') { const q = e.target.value.toLowerCase(); document.querySelectorAll('#pickList .pick').forEach(p => { p.hidden = q && !p.dataset.s.includes(q); }); }
 });

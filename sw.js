@@ -1,5 +1,5 @@
 // Bei jedem Update CACHE hochzählen, sonst behalten installierte Apps die alte Version.
-const CACHE = 'sonnenklar-v7';
+const CACHE = 'sonnenklar-v8';
 const CORE = ['./', 'index.html', 'app.css', 'app.js', 'recipes.js', 'shared.js', 'widget-scriptable.js', 'widget-shim.js', 'widgets.html', 'manifest.webmanifest', 'icons/icon.svg', 'icons/icon-192.png', 'icons/icon-512.png', 'icons/apple-touch-icon.png'];
 
 self.addEventListener('install', e => {
@@ -19,8 +19,8 @@ self.addEventListener('fetch', e => {
     }).catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match('index.html'))));
     return;
   }
-  // Schrift und Icons: Cache zuerst, im Hintergrund auffrischen
-  if (/fonts\.(googleapis|gstatic)\.com|unpkg\.com/.test(url.host)) {
+  // Schrift, Icons und Barcode-Leser: Cache zuerst, im Hintergrund auffrischen
+  if (/fonts\.(googleapis|gstatic)\.com|unpkg\.com|cdn\.jsdelivr\.net/.test(url.host)) {
     e.respondWith(caches.match(req).then(hit => {
       const net = fetch(req).then(res => { const copy = res.clone(); caches.open(CACHE).then(c => c.put(req, copy)); return res; }).catch(() => hit);
       return hit || net;
